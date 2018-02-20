@@ -7,6 +7,7 @@
 
 #include "soci-sqlite3.h"
 #include <cstring>
+#include <algorithm>
 
 using namespace soci;
 
@@ -54,7 +55,10 @@ std::size_t sqlite3_blob_backend::write(
 {
     const char* oldBuf = buf_;
     std::size_t oldLen = len_;
-    len_ = (std::max)(len_, offset + toWrite);
+    len_ = (offset + toWrite);
+	
+	if( offset > oldLen ) 
+		throw soci::soci_error("offset greater than old length");
 
     buf_ = new char[len_];
 
@@ -63,7 +67,7 @@ std::size_t sqlite3_blob_backend::write(
         // we need to copy both old and new buffers
         // it is possible that the new does not
         // completely cover the old
-        memcpy(buf_, oldBuf, oldLen);
+        memcpy(buf_, oldBuf, offset);
         delete [] oldBuf;
     }
     memcpy(buf_ + offset, buf, toWrite);
@@ -96,9 +100,8 @@ void sqlite3_blob_backend::trim(std::size_t newLen)
     const char* oldBuf = buf_;
     len_ = newLen;
 
-    buf_ = new char[len_];
-
-    memcpy(buf_, oldBuf, len_);
+	buf_ = new char[len_];
+	memcpy(buf_, oldBuf, len_);
 
     delete [] oldBuf;
 }

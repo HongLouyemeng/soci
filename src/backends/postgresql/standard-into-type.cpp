@@ -95,7 +95,7 @@ void postgresql_standard_into_type_backend::post_fetch(
         case x_stdstring:
             {
                 std::string * dest = static_cast<std::string *>(data_);
-                dest->assign(buf);
+				dest->assign(buf);
             }
             break;
         case x_short:
@@ -149,27 +149,14 @@ void postgresql_standard_into_type_backend::post_fetch(
             break;
         case x_blob:
             {
-                unsigned long oid =
-                    string_to_unsigned_integer<unsigned long>(buf);
-
-                int fd = lo_open(statement_.session_.conn_, oid,
-                    INV_READ | INV_WRITE);
-                if (fd == -1)
-                {
-                    throw soci_error("Cannot open the blob object.");
-                }
-
                 blob * b = static_cast<blob *>(data_);
                 postgresql_blob_backend * bbe
                      = static_cast<postgresql_blob_backend *>(b->get_backend());
 
-                if (bbe->fd_ != -1)
-                {
-                    lo_close(statement_.session_.conn_, bbe->fd_);
-                }
-
-                bbe->fd_ = fd;
-                bbe->oid_ = oid;
+                size_t size(0);
+				char * bytesbuf = (char*)PQunescapeBytea((const unsigned char*)buf,&size);
+				bbe->set_data(bytesbuf,size);
+				PQfreemem(bytesbuf);
             }
             break;
 

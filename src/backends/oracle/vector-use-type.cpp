@@ -73,7 +73,7 @@ void oracle_vector_use_type_backend::prepare_for_bind(
         break;
     case x_double:
         {
-            oracleType = SQLT_FLT;
+            oracleType = SQLT_BDOUBLE;
             size = sizeof(double);
             std::vector<double> *vp = static_cast<std::vector<double> *>(data);
             std::vector<double> &v(*vp);
@@ -169,6 +169,15 @@ void oracle_vector_use_type_backend::prepare_for_bind(
     case x_rowid:     break; // not supported
     case x_blob:      break; // not supported
     }
+}
+
+oracle_vector_use_type_backend::~oracle_vector_use_type_backend()
+{
+	if( buf_ != NULL )
+	{
+		delete [] buf_;
+		buf_ = NULL;
+	}
 }
 
 void oracle_vector_use_type_backend::bind_by_pos(int &position,

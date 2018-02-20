@@ -5,6 +5,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 //
 
+
 #define SOCI_ORACLE_SOURCE
 #include "soci-oracle.h"
 #include "blob.h"
@@ -18,6 +19,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <sstream>
+#include <limits>
 
 #ifdef _MSC_VER
 #pragma warning(disable:4355)
@@ -51,11 +53,97 @@ oracle_statement_backend::make_vector_use_type_backend()
     return new oracle_vector_use_type_backend(*this);
 }
 
+static sb4 fetch_cbk(void  *octxp, OCIDefine *defnp, ub4 iter,
+                                 void  **bufpp, ub4 **alenp, ub1 *piecep,
+                                 void  **indp, ub2 **rcodep)
+{
+	oracle_standard_into_type_backend* backend = (oracle_standard_into_type_backend*)octxp;
+	*indp = &backend->indOCIHolder_;
+	*rcodep = &backend->rCode_;
+
+	switch(*piecep)
+	{
+	case OCI_ONE_PIECE:
+		{
+			if(backend->oldSize_>0)
+			{
+				backend->oldSize_ = 0;
+				delete [] backend->buf_;
+			}
+			backend->lastSize_ = 32768; //We get the data by chunks of 32768 bytes
+			size_t iSize = backend->lastSize_ + 1;
+			backend->buf_ = new char[iSize];
+			memset(backend->buf_,0,sizeof(char)*(iSize));
+			
+			*piecep = OCI_ONE_PIECE;
+			*bufpp = &backend->buf_[0];
+			*alenp = &backend->lastSize_;
+		}
+		break;
+	case OCI_FIRST_PIECE:
+		{
+			if(backend->oldSize_>0)
+			{
+				backend->oldSize_ = 0;
+				delete [] backend->buf_;
+			}
+			backend->oldSize_ = 0;
+			backend->lastSize_ = 32768; //We get the data by chunks of 32768 bytes
+
+			size_t iSize = backend->lastSize_ + 1;
+			backend->buf_ = new char[iSize];
+			memset(backend->buf_,0,sizeof(char)*(iSize));
+
+			*piecep = OCI_NEXT_PIECE;
+			*bufpp = &backend->buf_[0];
+			*alenp = &backend->lastSize_;
+		}
+		break;
+	case OCI_NEXT_PIECE:
+		{
+			char* oldBuf = NULL;
+			ub4 oldSize = backend->oldSize_ + backend->lastSize_;
+			if(oldSize>0)
+			{
+				oldBuf = backend->buf_;
+			}
+			if( backend->lastSize_ > 0 )
+			{
+				backend->lastSize_ = 32768; //We get the data by chunks of 32768 bytes
+				size_t iSize = oldSize + backend->lastSize_ + 1;
+				backend->buf_ = new char[iSize];
+				memset(backend->buf_,0,sizeof(char)*(iSize));
+
+				memcpy(backend->buf_,oldBuf,oldSize);
+				backend->oldSize_ = oldSize;
+
+				delete [] oldBuf;
+			}
+			*piecep = backend->lastSize_ > 0 ? OCI_NEXT_PIECE : OCI_LAST_PIECE;
+			*bufpp = &backend->buf_[oldSize];
+			*alenp = &backend->lastSize_;
+		}
+		break;
+	case OCI_LAST_PIECE:
+		{
+			printf(backend->buf_);
+		}
+		break;
+	}
+	return OCI_CONTINUE;
+}
+
+oracle_standard_into_type_backend::~oracle_standard_into_type_backend()
+{
+	clean_up();
+}
+
 void oracle_standard_into_type_backend::define_by_pos(
     int &position, void *data, exchange_type type)
 {
     data_ = data; // for future reference
     type_ = type; // for future reference
+	ub4 oracleMode = OCI_DEFAULT;
 
     ub2 oracleType = 0; // dummy initialization to please the compiler
     sb4 size = 0;       // also dummy
@@ -76,7 +164,7 @@ void oracle_standard_into_type_backend::define_by_pos(
         size = sizeof(int);
         break;
     case x_double:
-        oracleType = SQLT_FLT;
+        oracleType = SQLT_BDOUBLE;
         size = sizeof(double);
         break;
 
@@ -90,9 +178,10 @@ void oracle_standard_into_type_backend::define_by_pos(
         break;
     case x_stdstring:
         oracleType = SQLT_STR;
-        size = 32769;  // support selecting strings from LONG columns
-        buf_ = new char[size];
+		size = std::numeric_limits<sb4>().max();
+		buf_ = NULL;
         data = buf_;
+		oracleMode = OCI_DYNAMIC_FETCH;
         break;
     case x_stdtm:
         oracleType = SQLT_DAT;
@@ -146,12 +235,19 @@ void oracle_standard_into_type_backend::define_by_pos(
     sword res = OCIDefineByPos(statement_.stmtp_, &defnp_,
             statement_.session_.errhp_,
             position++, data, size, oracleType,
-            &indOCIHolder_, 0, &rCode_, OCI_DEFAULT);
+            &indOCIHolder_, 0, &rCode_, oracleMode);
 
     if (res != OCI_SUCCESS)
     {
         throw_oracle_soci_error(res, statement_.session_.errhp_);
     }
+
+	if(oracleMode == OCI_DYNAMIC_FETCH)
+	{
+		res = OCIDefineDynamic(defnp_,
+				statement_.session_.errhp_, 
+				this, fetch_cbk);
+	}
 }
 
 void oracle_standard_into_type_backend::pre_fetch()
@@ -177,8 +273,16 @@ void oracle_standard_into_type_backend::post_fetch(
             if (indOCIHolder_ != -1)
             {
                 std::string *s = static_cast<std::string *>(data_);
+				buf_[oldSize_+lastSize_] = '\0';
                 *s = buf_;
+				delete [] buf_;
+				buf_ = NULL;
             }
+			else if( buf_ != NULL )
+			{
+				delete [] buf_;
+				buf_ = NULL;
+			}
         }
         else if (type_ == x_long_long)
         {

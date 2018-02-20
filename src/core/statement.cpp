@@ -11,6 +11,7 @@
 #include "into-type.h"
 #include "use-type.h"
 #include "values.h"
+#include "blob.h"
 #include <ctime>
 #include <cctype>
 

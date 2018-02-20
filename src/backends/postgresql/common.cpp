@@ -34,6 +34,26 @@ long parse10(char const * & p1, char * & p2, char const * msg)
 
 void soci::details::postgresql::parse_std_tm(char const * buf, std::tm & t)
 {
+	if(std::strcmp(buf,"infinity") == 0)
+	{
+		t.tm_year = (9999-1900);
+		t.tm_mon = (12-1);
+		t.tm_mday = 31;
+		t.tm_hour = 23;
+		t.tm_min = 59;
+		t.tm_sec = 59;
+		return;
+	}
+	if(std::strcmp(buf,"-infinity") == 0)
+	{
+		t.tm_year = 0;
+		t.tm_mon = 0;
+		t.tm_mday = 1;
+		t.tm_hour = 0;
+		t.tm_min = 0;
+		t.tm_sec = 0;
+		return;
+	}
     char const * p1 = buf;
     char * p2;
     char separator;
@@ -109,3 +129,4 @@ double soci::details::postgresql::string_to_double(char const * buf)
         throw soci_error("Cannot convert data.");
     }
 }
+

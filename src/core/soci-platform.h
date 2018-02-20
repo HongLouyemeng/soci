@@ -26,9 +26,12 @@
 
 // Define if you have the snprintf variants.
 #define HAVE_SNPRINTF 1
+#if _MSC_VER < 1900
 #define snprintf _snprintf
+#endif // _MSC_VER < 1900
 
 // Define if you have the strtoll and strtoull variants.
+#if _MSC_VER < 1900
 #if _MSC_VER >= 1300
 # define HAVE_STRTOLL 1
 # define HAVE_STRTOULL 1
@@ -48,6 +51,7 @@ namespace std {
 # undef HAVE_STRTOULL
 # error "Visual C++ versions prior 1300 don't support _strtoi64 and _strtoui64"
 #endif // _MSC_VER >= 1300
+#endif // _MSC_VER < 1900
 #endif // _MSC_VER
 
 #endif // SOCI_PLATFORM_H_INCLUDED

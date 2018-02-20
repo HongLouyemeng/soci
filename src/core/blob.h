@@ -29,14 +29,23 @@ public:
     explicit blob(session & s);
     ~blob();
 
-    std::size_t get_len();
-    std::size_t read(std::size_t offset, char * buf, std::size_t toRead);
+    std::size_t get_len() const;
+    std::size_t read(char * buf, std::size_t toRead) const;
+    std::size_t read(std::size_t offset, char * buf, std::size_t toRead) const;
+    std::size_t write(char const * buf, std::size_t toWrite);
     std::size_t write(std::size_t offset, char const * buf,
         std::size_t toWrite);
+	
+	std::size_t readFromFile(char const * strFilePath);
+	std::size_t writeToFile(char const * strFilePath) const;
+
     std::size_t append(char const * buf, std::size_t toWrite);
     void trim(std::size_t newLen);
+	void clear();
 
     details::blob_backend * get_backend() { return backEnd_; }
+
+	soci::blob & operator =( const soci::blob & src);
 
 private:
     details::blob_backend * backEnd_;

@@ -5,6 +5,11 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 //
 
+
+#define _CRTDBG_MAP_ALLOC
+#include <stdlib.h>
+#include <crtdbg.h>
+
 #include "soci.h"
 #include "soci-oracle.h"
 #include "common-tests.h"
@@ -150,6 +155,8 @@ void test3()
         assert(b.get_len() == sizeof(buf));
         b.trim(10);
         assert(b.get_len() == 10);
+		
+		sql << "update soci_test set img = :img where id = 7", use(b,"img");
 
         // append does not work (Oracle bug #886191 ?)
         //b.append(buf, sizeof(buf));
@@ -262,6 +269,7 @@ struct procedure_creator : procedure_creator_base
 
 void test6()
 {
+	#ifdef ENABLE_PROCEDURE
     {
         session sql(backEnd, connectString);
         procedure_creator procedure_creator(sql);
@@ -286,6 +294,7 @@ void test6()
             assert(out == in);
         }
     }
+	#endif
 
     std::cout << "test 6 passed" << std::endl;
 }
@@ -367,6 +376,7 @@ void test7()
 
 void test7inout()
 {
+	#ifdef ENABLE_PROCEDURE
     {
         session sql(backEnd, connectString);
 
@@ -390,11 +400,13 @@ void test7inout()
             assert(sh.get() == "testtest");
         }
     }
+	#endif
     std::cout << "test 7-inout passed" << std::endl;
 }
 
 void test7outnull()
 {
+	#ifdef ENABLE_PROCEDURE
     {
         session sql(backEnd, connectString);
 
@@ -409,6 +421,7 @@ void test7outnull()
             assert(ind == i_null);
         }
     }
+	#endif
     std::cout << "test 7-outnull passed" << std::endl;
 }
 
@@ -867,6 +880,7 @@ void test10()
         assert(gotData == false);
     }
 
+	#ifdef ENABLE_PROCEDURE
     // test with stored procedure
     {
         times100_procedure_creator procedureCreator(sql);
@@ -906,6 +920,7 @@ void test10()
         assert(p.gender == "unknown");
 
     }
+	#endif
     std::cout << "test 10 passed" << std::endl;
 }
 
@@ -995,7 +1010,7 @@ struct long_table_creator : public table_creator_base
     long_table_creator(session & sql)
         : table_creator_base(sql)
     {
-        sql << "create table soci_test(l long)";
+        sql << "create table soci_test(n varchar2(4000), o varchar2(4000), b blob, l clob, m clob)";
     }
 };
 
@@ -1004,16 +1019,38 @@ void test12()
     session sql(backEnd, connectString);
     long_table_creator creator(sql);
 
-    const std::string::size_type max = 32768;
+    const std::string::size_type max = 100000;
     std::string in(max, 'X');
+    std::string in2(max, 'Y');
+	blob bin(sql);
+	bin.write(in.c_str(),max);
+	std::string accent("Décembre");
+	std::string empty;
+	soci::indicator ind = soci::i_null;
 
-    sql << "insert into soci_test values(:l)", use(in);
+    sql << "insert into soci_test values( :n, :o, :b,:l,:m)", use(accent,ind), use(empty,ind), use(bin), use(in), use(accent);
+
+	sql.commit();
 
     std::string out;
-    sql << "select l from soci_test", into(out);
+    std::string out2;
+	blob bout(sql);
+    std::string out3;
+    sql << "select l,m,b,n from soci_test", into(out), into(out2), into(bout), into(out3);
 
     assert(out.size() == max);
     assert(in == out);
+    assert(accent == out2);
+    assert(accent == out3);
+    assert(bout.get_len() == max);
+	
+    
+	char * buf = new char[bout.get_len() + 1];
+	memset(buf,0,bout.get_len() + 1);
+	bout.read(buf,bout.get_len());
+    assert(in == buf);
+	delete [] buf;
+
 
     std::cout << "test 12 passed" << std::endl;
 }
@@ -1021,6 +1058,7 @@ void test12()
 // test for modifiable and const use elements
 void test13()
 {
+	#ifdef ENABLE_PROCEDURE
     session sql(backEnd, connectString);
 
     int i = 7;
@@ -1043,6 +1081,7 @@ void test13()
         const std::string msg = e.what();
         assert(msg == "Attempted modification of const use element");
     }
+	#endif
 
     std::cout << "test 13 passed" << std::endl;
 }
@@ -1125,7 +1164,7 @@ struct table_creator_two : public table_creator_base
         : table_creator_base(sql)
     {
         sql  << "create table soci_test(num_float number, num_int numeric(4,0),"
-                    " name varchar2(20), sometime date, chr char)";
+                    " name varchar2(20), sometime date, chr varchar2(10))";
     }
 };
 
@@ -1183,6 +1222,7 @@ public:
 
 int main(int argc, char** argv)
 {
+
 #ifdef _MSC_VER
     // Redirect errors, unrecoverable problems, and assert() failures to STDERR,
     // instead of debug message window.
@@ -1191,6 +1231,9 @@ int main(int argc, char** argv)
     _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE);
     _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
 #endif //_MSC_VER
+	
+	_CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
+	_CrtSetReportMode( _CRT_ERROR, _CRTDBG_MODE_DEBUG );
 
     if (argc == 2)
     {
@@ -1237,5 +1280,7 @@ int main(int argc, char** argv)
     {
         std::cout << e.what() << '\n';
     }
+	
+	system("pause");
     return EXIT_FAILURE;
 }
