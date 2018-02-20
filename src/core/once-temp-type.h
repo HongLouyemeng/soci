@@ -11,7 +11,7 @@
 #include "ref-counted-statement.h"
 #include "prepare-temp-type.h"
 
-#if __cplusplus >= 201103L
+#if __cplusplus >= 201103L || (defined(_MSC_VER) && _MSC_VER >= 1900)
 #define SOCI_ONCE_TEMP_TYPE_NOEXCEPT noexcept(false)
 #else
 #define SOCI_ONCE_TEMP_TYPE_NOEXCEPT
