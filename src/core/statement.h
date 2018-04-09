@@ -15,6 +15,7 @@
 #include "use.h"
 #include "soci-backend.h"
 #include "row.h"
+#include "blob-exchange.h"
 // std
 #include <cstddef>
 #include <string>

@@ -206,6 +206,7 @@ public:
     virtual std::size_t get_len() = 0;
     virtual std::size_t read(std::size_t offset, char* buf,
         std::size_t toRead) = 0;
+    virtual std::size_t get_start_index() = 0;
     virtual std::size_t write(std::size_t offset, char const* buf,
         std::size_t toWrite) = 0;
     virtual std::size_t append(char const* buf, std::size_t toWrite) = 0;

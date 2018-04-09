@@ -230,6 +230,7 @@ struct sqlite3_blob_backend : details::blob_backend
     ~sqlite3_blob_backend();
 
     virtual std::size_t get_len();
+	virtual std::size_t get_start_index() { return 0; };
     virtual std::size_t read(std::size_t offset, char *buf,
                              std::size_t toRead);
     virtual std::size_t write(std::size_t offset, char const *buf,
@@ -255,6 +256,8 @@ struct sqlite3_session_backend : details::session_backend
     virtual void begin();
     virtual void commit();
     virtual void rollback();
+	
+    virtual bool get_last_insert_id(session& s, std::string const& table, long& value);
 
     virtual std::string get_backend_name() const { return "sqlite3"; }
 

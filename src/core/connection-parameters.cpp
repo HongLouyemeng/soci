@@ -9,6 +9,7 @@
 #include "connection-parameters.h"
 #include "soci-backend.h"
 #include "backend-loader.h"
+#include <windows.h>
 
 using namespace soci;
 

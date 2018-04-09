@@ -189,9 +189,9 @@ void postgresql_statement_backend::prepare(std::string const & query,
 
         postgresql_result result(
             PQprepare(session_.conn_, statementName.c_str(),
-              query_.c_str(), static_cast<int>(names_.size()), NULL));
+			query_.c_str(), static_cast<int>(names_.size()), NULL));
         result.check_for_errors("Cannot prepare statement.");
-
+		
         // Now it's safe to save this info.
         statementName_ = statementName;
     }
@@ -315,7 +315,7 @@ postgresql_statement_backend::execute(int number)
                     // this query was not separately prepared and should
                     // be executed as a one-time query
 
-                    result_.reset(PQexecParams(session_.conn_, query_.c_str(),
+					result_.reset(PQexecParams(session_.conn_, query_.c_str(),
                         static_cast<int>(paramValues.size()),
                         NULL, &paramValues[0], NULL, NULL, 0));
                 }
@@ -365,7 +365,7 @@ postgresql_statement_backend::execute(int number)
             }
             else // stType_ == st_one_time_query
             {
-                result_.reset(PQexec(session_.conn_, query_.c_str()));
+				result_.reset(PQexec(session_.conn_, query_.c_str()));
             }
 
 #endif // SOCI_POSTGRESQL_NOPREPARE

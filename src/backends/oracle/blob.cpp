@@ -31,11 +31,34 @@ oracle_blob_backend::oracle_blob_backend(oracle_session_backend &session)
     {
         throw soci_error("Cannot allocate the LOB locator");
     }
+	
+}
+
+void CreateTemp(oracle_session_backend &session_, OCILobLocator *lobp_)
+{
+	int is_temporary;
+	sword res = OCILobIsTemporary(session_.envhp_,session_.errhp_,lobp_,&is_temporary);
+	if (res != OCI_SUCCESS)
+    {
+        throw_oracle_soci_error(res, session_.errhp_);
+    }
+
+	if( is_temporary == FALSE )
+	{
+		res = OCILobCreateTemporary(session_.svchp_,
+			session_.errhp_,
+			lobp_,0, SQLCS_IMPLICIT, OCI_TEMP_CLOB, OCI_ATTR_NOCACHE, OCI_DURATION_SESSION);
+		if (res != OCI_SUCCESS)
+		{
+			throw_oracle_soci_error(res, session_.errhp_);
+		}
+	}
 }
 
 oracle_blob_backend::~oracle_blob_backend()
 {
-    OCIDescriptorFree(lobp_, OCI_DTYPE_LOB);
+	OCILobFreeTemporary(session_.svchp_, session_.errhp_, lobp_);
+	OCIDescriptorFree(lobp_, OCI_DTYPE_LOB);
 }
 
 std::size_t oracle_blob_backend::get_len()
@@ -72,6 +95,8 @@ std::size_t oracle_blob_backend::read(
 std::size_t oracle_blob_backend::write(
     std::size_t offset, char const *buf, std::size_t toWrite)
 {
+	CreateTemp(session_, lobp_);
+
     ub4 amt = static_cast<ub4>(toWrite);
 
     sword res = OCILobWrite(session_.svchp_, session_.errhp_, lobp_, &amt,
@@ -88,6 +113,8 @@ std::size_t oracle_blob_backend::write(
 
 std::size_t oracle_blob_backend::append(char const *buf, std::size_t toWrite)
 {
+	CreateTemp(session_, lobp_);
+
     ub4 amt = static_cast<ub4>(toWrite);
 
     sword res = OCILobWriteAppend(session_.svchp_, session_.errhp_, lobp_,

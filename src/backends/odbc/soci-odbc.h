@@ -258,6 +258,7 @@ struct odbc_blob_backend : details::blob_backend
     virtual std::size_t get_len();
     virtual std::size_t read(std::size_t offset, char *buf,
         std::size_t toRead);
+    virtual std::size_t get_start_index();
     virtual std::size_t write(std::size_t offset, char const *buf,
         std::size_t toWrite);
     virtual std::size_t append(char const *buf, std::size_t toWrite);

@@ -4,6 +4,9 @@
 // (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 //
+#define _CRTDBG_MAP_ALLOC
+#include <stdlib.h>
+#include <crtdbg.h>
 
 #include "soci.h"
 #include "soci-sqlite3.h"
@@ -386,6 +389,9 @@ int main(int argc, char** argv)
     _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
 #endif //_MSC_VER
 
+	_CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
+	_CrtSetReportMode( _CRT_ERROR, _CRTDBG_MODE_DEBUG );
+
     if (argc == 2)
     {
         connectString = argv[1];
@@ -401,9 +407,10 @@ int main(int argc, char** argv)
         test_context tc(backEnd, connectString);
         common_tests tests(tc);
         tests.run();
-
+		
+		
         std::cout << "\nSOCI sqlite3 Tests:\n\n";
-
+		
         test1();
         test2();
         test3();
@@ -412,7 +419,7 @@ int main(int argc, char** argv)
         test6();
 
         std::cout << "\nOK, all tests passed.\n\n";
-
+		
         return EXIT_SUCCESS;
     }
     catch (soci::soci_error const & e)
@@ -422,7 +429,8 @@ int main(int argc, char** argv)
     catch (std::exception const & e)
     {
         std::cout << "EXCEPTION: " << e.what() << '\n';
-    }
 
+    }
+	system("pause");
     return EXIT_FAILURE;
 }

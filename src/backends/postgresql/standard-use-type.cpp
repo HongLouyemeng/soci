@@ -26,7 +26,10 @@
 
 #ifdef _MSC_VER
 #pragma warning(disable:4355 4996)
-#define snprintf _snprintf
+// flag CGX : disable snprintf
+#if !defined(snprintf) && _MSC_VER < 1900
+# define snprintf _snprintf
+#endif
 #endif
 
 using namespace soci;
@@ -75,7 +78,7 @@ void postgresql_standard_use_type_backend::pre_use(indicator const * ind)
         case x_stdstring:
             {
                 std::string * s = static_cast<std::string *>(data_);
-                buf_ = new char[s->size() + 1];
+				buf_ = new char[s->size() + 1];
                 std::strcpy(buf_, s->c_str());
             }
             break;
@@ -130,11 +133,32 @@ void postgresql_standard_use_type_backend::pre_use(indicator const * ind)
             {
                 std::size_t const bufSize = 20;
                 buf_ = new char[bufSize];
-
+				
                 std::tm * t = static_cast<std::tm *>(data_);
-                snprintf(buf_, bufSize, "%d-%02d-%02d %02d:%02d:%02d",
-                    t->tm_year + 1900, t->tm_mon + 1, t->tm_mday,
-                    t->tm_hour, t->tm_min, t->tm_sec);
+				if(t->tm_year > 3000)
+				{
+					std::strcpy(buf_,"infinity");
+				}
+				else if(t->tm_year == 0 && t->tm_mon == 0 && t->tm_mday == 1 && t->tm_hour <= 0 && t->tm_min <= 0 && t->tm_sec <= 0)
+				{
+					std::strcpy(buf_,"-infinity");
+				}
+				else if(t->tm_mday <= 0)
+				{
+					snprintf(buf_, bufSize, "%02d:%02d:%02d",
+						t->tm_hour, t->tm_min, t->tm_sec);
+				}
+				else if(t->tm_hour < 0)
+				{
+					snprintf(buf_, bufSize, "%d-%02d-%02d",
+						t->tm_year + 1900, t->tm_mon + 1, t->tm_mday);
+				}
+				else
+				{
+					snprintf(buf_, bufSize, "%d-%02d-%02d %02d:%02d:%02d",
+						t->tm_year + 1900, t->tm_mon + 1, t->tm_mday,
+						t->tm_hour, t->tm_min, t->tm_sec);
+				}
             }
             break;
         case x_rowid:
@@ -159,10 +183,13 @@ void postgresql_standard_use_type_backend::pre_use(indicator const * ind)
                 postgresql_blob_backend * bbe =
                     static_cast<postgresql_blob_backend *>(b->get_backend());
 
-                std::size_t const bufSize
-                    = std::numeric_limits<unsigned long>::digits10 + 2;
-                buf_ = new char[bufSize];
-                snprintf(buf_, bufSize, "%lu", bbe->oid_);
+                std::size_t bufSize = 0;
+				unsigned char* escaped = PQescapeByteaConn(statement_.session_.conn_,(const unsigned char*)bbe->data(), bbe->get_len(), &bufSize);				
+
+				buf_ = new char[bufSize];
+				memcpy(buf_,escaped,bufSize);
+
+				delete [] escaped;
             }
             break;
 

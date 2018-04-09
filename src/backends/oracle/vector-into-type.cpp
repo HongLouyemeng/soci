@@ -39,6 +39,15 @@ void oracle_vector_into_type_backend::prepare_indicators(std::size_t size)
     rCodes_.resize(size);
 }
 
+oracle_vector_into_type_backend::~oracle_vector_into_type_backend()
+{
+	if( buf_ != NULL )
+	{
+		delete [] buf_;
+		buf_ = NULL;
+	}
+}
+
 void oracle_vector_into_type_backend::define_by_pos(
     int &position, void *data, exchange_type type)
 {
@@ -83,7 +92,7 @@ void oracle_vector_into_type_backend::define_by_pos(
         break;
     case x_double:
         {
-            oracleType = SQLT_FLT;
+            oracleType = SQLT_BDOUBLE;
             size = sizeof(double);
             std::vector<double> *vp = static_cast<std::vector<double> *>(data);
             std::vector<double> &v(*vp);

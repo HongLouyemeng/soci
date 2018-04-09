@@ -369,6 +369,12 @@ std::string session::get_backend_name() const
 
     return backEnd_->get_backend_name();
 }
+std::string session::get_connect_string() const
+{
+    ensureConnected(backEnd_);
+
+	return lastConnectParameters_.get_connect_string();
+}
 
 statement_backend * session::make_statement_backend()
 {

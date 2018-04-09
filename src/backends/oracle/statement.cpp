@@ -31,6 +31,11 @@ oracle_statement_backend::oracle_statement_backend(oracle_session_backend &sessi
 {
 }
 
+oracle_statement_backend::~oracle_statement_backend()
+{
+	clean_up();
+}
+
 void oracle_statement_backend::alloc()
 {
     sword res = OCIHandleAlloc(session_.envhp_,
@@ -59,6 +64,8 @@ void oracle_statement_backend::prepare(std::string const &query,
     statement_type /* eType */)
 {
     sb4 stmtLen = static_cast<sb4>(query.size());
+	if(stmtLen>0 && query.at(stmtLen-1) == ';')
+		stmtLen--;
     sword res = OCIStmtPrepare(stmtp_,
         session_.errhp_,
         reinterpret_cast<text*>(const_cast<char*>(query.c_str())),

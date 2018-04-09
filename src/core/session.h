@@ -115,8 +115,9 @@ public:
     // for diagnostics and advanced users
     // (downcast it to expected back-end session class)
     details::session_backend * get_backend() { return backEnd_; }
-
+	
     std::string get_backend_name() const;
+    std::string get_connect_string() const;
 
     details::statement_backend * make_statement_backend();
     details::rowid_backend * make_rowid_backend();

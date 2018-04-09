@@ -145,6 +145,7 @@ struct empty_blob_backend : details::blob_backend
 
     std::size_t get_len();
     std::size_t read(std::size_t offset, char* buf, std::size_t toRead);
+    std::size_t get_start_index();
     std::size_t write(std::size_t offset, char const* buf, std::size_t toWrite);
     std::size_t append(char const* buf, std::size_t toWrite);
     void trim(std::size_t newLen);

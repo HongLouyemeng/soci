@@ -49,7 +49,9 @@ struct oracle_standard_into_type_backend : details::standard_into_type_backend
 {
     oracle_standard_into_type_backend(oracle_statement_backend &st)
         : statement_(st), defnp_(NULL), indOCIHolder_(0),
-          data_(NULL), buf_(NULL) {}
+          data_(NULL), buf_(NULL), oldSize_(0) , lastSize_(0), rCode_(0) {}
+
+	virtual ~oracle_standard_into_type_backend();
 
     virtual void define_by_pos(int &position,
         void *data, details::exchange_type type);
@@ -66,6 +68,8 @@ struct oracle_standard_into_type_backend : details::standard_into_type_backend
     sb2 indOCIHolder_;
     void *data_;
     char *buf_;        // generic buffer
+	ub4 oldSize_;
+	ub4 lastSize_;
     details::exchange_type type_;
 
     ub2 rCode_;
@@ -76,6 +80,8 @@ struct oracle_vector_into_type_backend : details::vector_into_type_backend
     oracle_vector_into_type_backend(oracle_statement_backend &st)
         : statement_(st), defnp_(NULL), indOCIHolders_(NULL),
           data_(NULL), buf_(NULL) {}
+
+	virtual ~oracle_vector_into_type_backend();
 
     virtual void define_by_pos(int &position,
         void *data, details::exchange_type type);
@@ -110,7 +116,9 @@ struct oracle_standard_use_type_backend : details::standard_use_type_backend
 {
     oracle_standard_use_type_backend(oracle_statement_backend &st)
         : statement_(st), bindp_(NULL), indOCIHolder_(0),
-          data_(NULL), buf_(NULL) {}
+          data_(NULL), buf_(NULL), size_(0) {}
+
+	virtual ~oracle_standard_use_type_backend();
 
     virtual void bind_by_pos(int &position,
         void *data, details::exchange_type type, bool readOnly);
@@ -118,7 +126,7 @@ struct oracle_standard_use_type_backend : details::standard_use_type_backend
         void *data, details::exchange_type type, bool readOnly);
 
     // common part for bind_by_pos and bind_by_name
-    void prepare_for_bind(void *&data, sb4 &size, ub2 &oracleType, bool readOnly);
+    void prepare_for_bind(void *&data, sb4 &size, ub2 &oracleType, ub4& oracleMode, bool readOnly);
 
     virtual void pre_use(indicator const *ind);
     virtual void post_use(bool gotData, indicator *ind);
@@ -132,6 +140,7 @@ struct oracle_standard_use_type_backend : details::standard_use_type_backend
     void *data_;
     bool readOnly_;
     char *buf_;        // generic buffer
+	ub4 size_;
     details::exchange_type type_;
 };
 
@@ -140,6 +149,8 @@ struct oracle_vector_use_type_backend : details::vector_use_type_backend
     oracle_vector_use_type_backend(oracle_statement_backend &st)
         : statement_(st), bindp_(NULL), indOCIHolders_(NULL),
           data_(NULL), buf_(NULL) {}
+
+	virtual ~oracle_vector_use_type_backend();
 
     virtual void bind_by_pos(int &position,
         void *data, details::exchange_type type);
@@ -177,6 +188,7 @@ struct oracle_session_backend;
 struct oracle_statement_backend : details::statement_backend
 {
     oracle_statement_backend(oracle_session_backend &session);
+	virtual ~oracle_statement_backend();
 
     virtual void alloc();
     virtual void clean_up();
@@ -225,9 +237,10 @@ struct oracle_blob_backend : details::blob_backend
 {
     oracle_blob_backend(oracle_session_backend &session);
 
-    ~oracle_blob_backend();
+    virtual ~oracle_blob_backend();
 
     virtual std::size_t get_len();
+	virtual std::size_t get_start_index() { return 1; };
     virtual std::size_t read(std::size_t offset, char *buf,
         std::size_t toRead);
     virtual std::size_t write(std::size_t offset, char const *buf,
@@ -248,7 +261,7 @@ struct oracle_session_backend : details::session_backend
         int mode,
         bool decimals_as_strings = false);
 
-    ~oracle_session_backend();
+    virtual ~oracle_session_backend();
 
     virtual void begin();
     virtual void commit();

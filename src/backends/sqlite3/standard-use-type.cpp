@@ -20,7 +20,10 @@
 
 #ifdef _MSC_VER
 #pragma warning(disable:4355 4996)
-#define snprintf _snprintf // TODO: use soci-platform.h
+// flag CGX : disable snprintf
+#if !defined(snprintf) && _MSC_VER < 1900
+# define snprintf _snprintf // TODO: use soci-platform.h
+#endif
 #endif
 
 using namespace soci;
@@ -156,9 +159,22 @@ void sqlite3_standard_use_type_backend::pre_use(indicator const * ind)
                 buf_ = new char[bufSize];
 
                 std::tm *t = static_cast<std::tm *>(data_);
-                snprintf(buf_, bufSize, "%d-%02d-%02d %02d:%02d:%02d",
-                    t->tm_year + 1900, t->tm_mon + 1, t->tm_mday,
-                    t->tm_hour, t->tm_min, t->tm_sec);
+				if(t->tm_mday <= 0)
+				{
+					snprintf(buf_, bufSize, "%02d:%02d:%02d",
+						t->tm_hour, t->tm_min, t->tm_sec);
+				}
+				else if(t->tm_hour < 0)
+				{
+					snprintf(buf_, bufSize, "%d-%02d-%02d",
+						t->tm_year + 1900, t->tm_mon + 1, t->tm_mday);
+				}
+				else
+				{
+					snprintf(buf_, bufSize, "%d-%02d-%02d %02d:%02d:%02d",
+						t->tm_year + 1900, t->tm_mon + 1, t->tm_mday,
+						t->tm_hour, t->tm_min, t->tm_sec);
+				}
             }
             break;
         case x_rowid:
@@ -194,7 +210,7 @@ static_cast<sqlite3_rowid_backend *>(rid->get_backend());
         }
 
         statement_.useData_[0][pos].isNull_ = false;
-        if (type_ != x_blob)
+        if (type_ != x_blob )
         {
             statement_.useData_[0][pos].blobBuf_ = 0;
             statement_.useData_[0][pos].blobSize_ = 0;

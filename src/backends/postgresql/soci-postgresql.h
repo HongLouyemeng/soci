@@ -291,17 +291,25 @@ struct postgresql_blob_backend : details::blob_backend
     ~postgresql_blob_backend();
 
     virtual std::size_t get_len();
+	virtual std::size_t get_start_index() { return 0; };
     virtual std::size_t read(std::size_t offset, char * buf,
         std::size_t toRead);
     virtual std::size_t write(std::size_t offset, char const * buf,
         std::size_t toWrite);
     virtual std::size_t append(char const * buf, std::size_t toWrite);
     virtual void trim(std::size_t newLen);
+	
+	const char* data() const;
+	std::size_t set_data(char const *buf, std::size_t toWrite);
 
     postgresql_session_backend & session_;
 
-    unsigned long oid_; // oid of the large object
-    int fd_;            // descriptor of the large object
+    /*unsigned long oid_; // oid of the large object
+    int fd_;            // descriptor of the large object*/
+	
+    char *buf_;
+    size_t len_;
+
 };
 
 struct postgresql_session_backend : details::session_backend

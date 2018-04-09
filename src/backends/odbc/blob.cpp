@@ -36,6 +36,11 @@ std::size_t odbc_blob_backend::read(
     return 0;
 }
 
+std::size_t odbc_blob_backend::get_start_index()
+{
+	return 0;
+}
+
 std::size_t odbc_blob_backend::write(
     std::size_t /* offset */, char const * /* buf */,
     std::size_t /* toWrite */)

@@ -21,7 +21,10 @@
 
 #ifdef _MSC_VER
 #pragma warning(disable:4355)
-#define snprintf _snprintf
+// flag CGX : disable snprintf
+#if !defined(snprintf) && _MSC_VER < 1900
+# define snprintf _snprintf
+#endif
 #endif
 
 using namespace soci;
@@ -29,8 +32,10 @@ using namespace soci::details;
 using namespace soci::details::oracle;
 
 void oracle_standard_use_type_backend::prepare_for_bind(
-    void *&data, sb4 &size, ub2 &oracleType, bool readOnly)
+    void *&data, sb4 &size, ub2 &oracleType, ub4& oracleMode, bool readOnly)
 {
+	oracleMode = OCI_DEFAULT;
+
     readOnly_ = readOnly;
 
     switch (type_)
@@ -42,6 +47,7 @@ void oracle_standard_use_type_backend::prepare_for_bind(
         if (readOnly)
         {
             buf_ = new char[size];
+			size_ = size;
             data = buf_;
         }
         break;
@@ -51,6 +57,7 @@ void oracle_standard_use_type_backend::prepare_for_bind(
         if (readOnly)
         {
             buf_ = new char[size];
+			size_ = size;
             data = buf_;
         }
         break;
@@ -60,15 +67,17 @@ void oracle_standard_use_type_backend::prepare_for_bind(
         if (readOnly)
         {
             buf_ = new char[size];
+			size_ = size;
             data = buf_;
         }
         break;
     case x_double:
-        oracleType = SQLT_FLT;
+        oracleType = SQLT_BDOUBLE;
         size = sizeof(double);
         if (readOnly)
         {
             buf_ = new char[size];
+			size_ = size;
             data = buf_;
         }
         break;
@@ -79,19 +88,23 @@ void oracle_standard_use_type_backend::prepare_for_bind(
         oracleType = SQLT_STR;
         size = 100; // arbitrary buffer length
         buf_ = new char[size];
+		size_ = size;
         data = buf_;
         break;
     case x_stdstring:
         oracleType = SQLT_STR;
         // 4000 is Oracle max VARCHAR2 size; 32768 is max LONG size
+		oracleMode = OCI_DATA_AT_EXEC;
         size = 32769;
         buf_ = new char[size];
+		size_ = size;
         data = buf_;
         break;
     case x_stdtm:
         oracleType = SQLT_DAT;
         size = 7 * sizeof(ub1);
         buf_ = new char[size];
+		size_ = size;
         data = buf_;
         break;
 
@@ -138,6 +151,28 @@ void oracle_standard_use_type_backend::prepare_for_bind(
     }
 }
 
+static sb4 bind_cbk(dvoid *ctxp, OCIBind *bindp, ub4 iter, ub4 index,
+                       dvoid **bufpp, ub4 *alenpp, ub1 *piecep, dvoid **indpp)
+{
+	oracle_standard_use_type_backend* backend = (oracle_standard_use_type_backend*)ctxp;
+	*indpp = (dvoid *) 0;
+	*piecep = OCI_ONE_PIECE;
+
+    *bufpp = (dvoid *) backend->buf_;
+    *alenpp = (backend->size_ > 0 ? backend->size_+1 : 0);//NULL terminated string
+
+	return OCI_CONTINUE;
+}
+
+oracle_standard_use_type_backend::~oracle_standard_use_type_backend()
+{
+	if( buf_ != NULL )
+	{
+		delete [] buf_;
+		buf_ = NULL;
+	}
+}
+
 void oracle_standard_use_type_backend::bind_by_pos(
     int &position, void *data, exchange_type type, bool readOnly)
 {
@@ -149,20 +184,30 @@ void oracle_standard_use_type_backend::bind_by_pos(
 
     data_ = data; // for future reference
     type_ = type; // for future reference
-
+	
     ub2 oracleType;
+    ub4 oracleMode;
     sb4 size;
 
-    prepare_for_bind(data, size, oracleType, readOnly);
+    prepare_for_bind(data, size, oracleType, oracleMode, readOnly);
 
     sword res = OCIBindByPos(statement_.stmtp_, &bindp_,
         statement_.session_.errhp_,
         position++, data, size, oracleType,
-        &indOCIHolder_, 0, 0, 0, 0, OCI_DEFAULT);
+        &indOCIHolder_, 0, 0, 0, 0, oracleMode);
     if (res != OCI_SUCCESS)
     {
         throw_oracle_soci_error(res, statement_.session_.errhp_);
     }
+
+	if(oracleMode == OCI_DATA_AT_EXEC)
+	{
+		res = OCIBindDynamic(bindp_,
+			statement_.session_.errhp_,
+			this,
+			bind_cbk,
+			0, (OCICallbackOutBind) 0);
+	}
 
     statement_.boundByPos_ = true;
 }
@@ -180,20 +225,30 @@ void oracle_standard_use_type_backend::bind_by_name(
     type_ = type; // for future reference
 
     ub2 oracleType;
+	ub4 oracleMode;
     sb4 size;
 
-    prepare_for_bind(data, size, oracleType, readOnly);
+    prepare_for_bind(data, size, oracleType, oracleMode, readOnly);
 
     sword res = OCIBindByName(statement_.stmtp_, &bindp_,
         statement_.session_.errhp_,
         reinterpret_cast<text*>(const_cast<char*>(name.c_str())),
         static_cast<sb4>(name.size()),
         data, size, oracleType,
-        &indOCIHolder_, 0, 0, 0, 0, OCI_DEFAULT);
+        &indOCIHolder_, 0, 0, 0, 0, oracleMode);
     if (res != OCI_SUCCESS)
     {
         throw_oracle_soci_error(res, statement_.session_.errhp_);
     }
+
+	if(oracleMode == OCI_DATA_AT_EXEC)
+	{
+		res = OCIBindDynamic(bindp_,
+			statement_.session_.errhp_,
+			this,
+			bind_cbk,
+			0, (OCICallbackOutBind) 0);
+	}
 
     statement_.boundByName_ = true;
 }
@@ -242,14 +297,18 @@ void oracle_standard_use_type_backend::pre_use(indicator const *ind)
     case x_stdstring:
         {
             std::string *s = static_cast<std::string *>(data_);
+			size_ = s->size();
 
             // 4000 is Oracle max VARCHAR2 size; 32768 is max LONG size
             std::size_t const bufSize = 32769;
             std::size_t const sSize = s->size();
-            std::size_t const toCopy =
-                sSize < bufSize -1 ? sSize + 1 : bufSize - 1;
-            strncpy(buf_, s->c_str(), toCopy);
-            buf_[toCopy] = '\0';
+			if(sSize>=bufSize-1) {
+				//Realocate buf_. It will the be used by th callback in dynamic bind
+				delete[] buf_;
+				buf_ = new char[sSize+1];
+			}
+            strncpy(buf_, s->c_str(), sSize);
+            buf_[sSize] = '\0';
         }
         break;
     case x_stdtm:

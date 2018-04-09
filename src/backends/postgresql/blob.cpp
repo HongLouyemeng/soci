@@ -13,6 +13,7 @@
 #include <cstring>
 #include <ctime>
 #include <sstream>
+#include <algorithm>
 
 #ifdef SOCI_POSTGRESQL_NOPARAMS
 #ifndef SOCI_POSTGRESQL_NOBINDBYNAME
@@ -30,7 +31,7 @@ using namespace soci::details;
 
 postgresql_blob_backend::postgresql_blob_backend(
     postgresql_session_backend & session)
-    : session_(session), fd_(-1)
+    : session_(session), buf_(0), len_(0)
 {
     // nothing to do here, the descriptor is open in the postFetch
     // method of the Into element
@@ -38,79 +39,103 @@ postgresql_blob_backend::postgresql_blob_backend(
 
 postgresql_blob_backend::~postgresql_blob_backend()
 {
-    lo_close(session_.conn_, fd_);
+	if (buf_)
+    {
+        delete [] buf_;
+        buf_ = 0;
+        len_ = 0;
+    }
 }
 
 std::size_t postgresql_blob_backend::get_len()
 {
-    int const pos = lo_lseek(session_.conn_, fd_, 0, SEEK_END);
-    if (pos == -1)
-    {
-        throw soci_error("Cannot retrieve the size of BLOB.");
-    }
-
-    return static_cast<std::size_t>(pos);
+    return len_;
 }
 
 std::size_t postgresql_blob_backend::read(
     std::size_t offset, char * buf, std::size_t toRead)
 {
-    int const pos = lo_lseek(session_.conn_, fd_,
-        static_cast<int>(offset), SEEK_SET);
-    if (pos == -1)
+    size_t r = toRead;
+
+    // make sure that we don't try to read
+    // past the end of the data
+    if (r > len_ - offset)
     {
-        throw soci_error("Cannot seek in BLOB.");
+        r = len_ - offset;
     }
 
-    int const readn = lo_read(session_.conn_, fd_, buf, toRead);
-    if (readn < 0)
-    {
-        throw soci_error("Cannot read from BLOB.");
-    }
+    memcpy(buf, buf_ + offset, r);
 
-    return static_cast<std::size_t>(readn);
+    return r;
 }
 
 std::size_t postgresql_blob_backend::write(
     std::size_t offset, char const * buf, std::size_t toWrite)
 {
-    int const pos = lo_lseek(session_.conn_, fd_,
-        static_cast<int>(offset), SEEK_SET);
-    if (pos == -1)
-    {
-        throw soci_error("Cannot seek in BLOB.");
-    }
+	 const char* oldBuf = buf_;
+    std::size_t oldLen = len_;
+    len_ = (offset + toWrite);
 
-    int const writen = lo_write(session_.conn_, fd_,
-        const_cast<char *>(buf), toWrite);
-    if (writen < 0)
-    {
-        throw soci_error("Cannot write to BLOB.");
-    }
+	if( offset > oldLen ) 
+		throw soci::soci_error("offset greater than old length");
 
-    return static_cast<std::size_t>(writen);
+    buf_ = new char[len_];
+
+    if (oldBuf)
+    {
+        // we need to copy both old and new buffers
+        // it is possible that the new does not
+        // completely cover the old
+        memcpy(buf_, oldBuf, offset);
+        delete [] oldBuf;
+    }
+    memcpy(buf_ + offset, buf, toWrite);
+
+    return len_;
 }
+    
 
 std::size_t postgresql_blob_backend::append(
     char const * buf, std::size_t toWrite)
 {
-    int const pos = lo_lseek(session_.conn_, fd_, 0, SEEK_END);
-    if (pos == -1)
-    {
-        throw soci_error("Cannot seek in BLOB.");
-    }
+    const char* oldBuf = buf_;
 
-    int const writen = lo_write(session_.conn_, fd_,
-        const_cast<char *>(buf), toWrite);
-    if (writen < 0)
-    {
-        throw soci_error("Cannot append to BLOB.");
-    }
+    buf_ = new char[len_ + toWrite];
 
-    return static_cast<std::size_t>(writen);
+    memcpy(buf_, oldBuf, len_);
+
+    memcpy(buf_ + len_, buf, toWrite);
+
+    delete [] oldBuf;
+
+    len_ += toWrite;
+
+    return len_;
 }
 
-void postgresql_blob_backend::trim(std::size_t /* newLen */)
+void postgresql_blob_backend::trim(std::size_t  newLen )
 {
-    throw soci_error("Trimming BLOBs is not supported.");
+    const char* oldBuf = buf_;
+    len_ = newLen;
+
+    buf_ = new char[len_];
+	memcpy(buf_, oldBuf, len_);
+
+    delete [] oldBuf;
+}
+
+const char* postgresql_blob_backend::data() const
+{
+    return buf_;
+}
+
+std::size_t postgresql_blob_backend::set_data(char const *buf, std::size_t toWrite)
+{
+    if (buf_)
+    {
+        delete [] buf_;
+        buf_ = 0;
+        len_ = 0;
+    }
+    return write(0, buf, toWrite);
 }
