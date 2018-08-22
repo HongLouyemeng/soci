@@ -186,7 +186,7 @@ void postgresql_standard_use_type_backend::pre_use(indicator const * ind)
 				buf_ = new char[bufSize];
 				memcpy(buf_,escaped,bufSize);
 
-				delete [] escaped;
+				PQfreemem(escaped);
             }
             break;
 

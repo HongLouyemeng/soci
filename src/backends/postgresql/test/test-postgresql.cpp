@@ -195,7 +195,7 @@ struct blob_table_creator : public table_creator_base
         sql <<
              "create table soci_test ("
              "    id integer,"
-             "    img oid"
+             "    img bytea"
              ")";
     }
 };
@@ -209,15 +209,16 @@ void test3()
 
         char buf[] = "abcdefghijklmnopqrstuvwxyz";
 
-        sql << "insert into soci_test(id, img) values(7, lo_creat(-1))";
+		sql << "insert into soci_test(id) values(7)";
 
         // in PostgreSQL, BLOB operations must be within transaction block
         transaction tr(sql);
 
         {
             blob b(sql);
+			soci::indicator idBlob;
 
-            sql << "select img from soci_test where id = 7", into(b);
+            sql << "select img from soci_test where id = 7", into(b, idBlob);
             assert(b.get_len() == 0);
 
             b.write(0, buf, sizeof(buf));
@@ -225,6 +226,9 @@ void test3()
 
             b.append(buf, sizeof(buf));
             assert(b.get_len() == 2 * sizeof(buf));
+
+			sql << "update soci_test set img = :blob where id = 7",
+				soci::use(b);
         }
         {
             blob b(sql);
@@ -234,10 +238,6 @@ void test3()
             b.read(0, buf2, 10);
             assert(std::strncmp(buf2, "abcdefghij", 10) == 0);
         }
-
-        unsigned long oid;
-        sql << "select img from soci_test where id = 7", into(oid);
-        sql << "select lo_unlink(" << oid << ")";
     }
 
     std::cout << "test 3 passed" << std::endl;
